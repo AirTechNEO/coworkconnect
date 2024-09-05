@@ -1,0 +1,91 @@
+/* General styling */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+section {
+    padding: 2em;
+    margin: 1em 0;
+}
+
+/* Styling for the request section */
+.request-division {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between; /* Aligns subdivisions with space between them */
+    margin-bottom: 10px;
+}
+
+.request-subdivision {
+    flex: 1 1 calc(33.333% - 10px); /* Each subdivision takes up 1/3 of the row, minus margin */
+    position: relative;
+    border: 1px solid #ccc;
+    margin: 5px; /* Space between items */
+    padding-top: 30px; /* Space for the label */
+    box-sizing: border-box;
+}
+
+.request-subdivision label {
+    position: absolute;
+    top: 10px; /* Space from the top of the subdivision */
+    left: 10px; /* Space from the left of the subdivision */
+    font-weight: bold;
+}
+
+.request-button {
+    width: auto;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+    padding: 10px;
+    margin-top: 10px;
+}
+
+.centered-obj{
+    width: auto;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+}
+#contentField {
+    width: 100%;
+    height: 200px;
+}       
+
+/* Specific to auth dropdown */
+#authButton {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px;
+    border: none;
+    cursor: pointer;
+}
+
+.top-right {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+}
+
+#authDropdown {
+    display: none;
+    position: absolute;
+    background-color: white;
+    box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+    z-index: 2;
+    right: 0;
+    flex-direction: column;
+}
+
+#authDropdown a {
+    color: black;
+    padding: 12px 16px;
+    text-decoration: none;
+    display: block;
+}
+
+#authDropdown a:hover {
+    background-color: #ddd;
+}

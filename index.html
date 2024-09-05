@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cowork Connect Alpha</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <section id="header">
+        <div class="top-right">
+            <button id="authButton">Account</button>
+            <div id="authDropdown" class="dropdown-content">
+                <a href="login.html">Login</a>
+                <a href="register.html">Register</a>
+            </div>
+        </div>
+    </section>
+    <section id="specificRequests">
+        <div class="request-division">
+            <div class="request-subdivision">
+                <label>List of available locations</label>
+                <input class="centered-obj" type="text" id="dateFrom" placeholder="Date from">
+                <input class="centered-obj" type="text" id="dateTo" placeholder="Date to">
+                <input class="centered-obj" type="text" id="roomSize" placeholder="Room size">
+                <input class="centered-obj" type="text" id="amenitiesList" placeholder="Equipment desired">
+                <input class="centered-obj" type="text" id="tagList" placeholder="Tags">
+                <input class="centered-obj" type="text" id="pageNb" placeholder="Page">
+                <button class="request-button" id="availableRoomsRequest">Send request</button>
+            </div>
+            <div class="request-subdivision">
+                <label>Book place</label>
+                <input class="centered-obj" type="text" id="bookingRoomId" placeholder="Room ID to book">
+                <input class="centered-obj" type="text" id="bookingNbPeople" placeholder="Number of people">
+                <input class="centered-obj" type="text" id="bookingDate" placeholder="Day of booking start">
+                <input class="centered-obj" type="text" id="bookingHour" placeholder="Hour of booking start">
+                <input class="centered-obj" type="text" id="bookingDuration" placeholder="Duration">
+                <button class="request-button" id="bookingRequest">Send request</button>
+            </div>
+            <div class="request-subdivision">
+                <label>Cancel booking</label>
+                <input class="centered-obj" type="text" id="cancelBookingId" placeholder="Booking ID to cancel">
+                <button class="request-button" id="cancelBookingRequest">Send request</button>
+            </div>
+        </div>
+        <div class="request-division">
+            <div class="request-subdivision">
+                <label>Make comment on booking</label>
+                <input class="centered-obj" type="text" id="commentBookingId" placeholder="Booking ID to comment">
+                <input class="centered-obj" type="text" id="commentRating" placeholder="Rating">
+                <input class="centered-obj" type="text" id="commentText" placeholder="Comment">
+                <button class="request-button" id="makeCommentRequest">Send request</button>
+            </div>
+            <div class="request-subdivision">
+                <label>Update user info</label>
+                <input class="centered-obj" type="password" id="currentPasswordUpdateInfo" placeholder="Current Password">
+                <input class="centered-obj" type="password" id="newPasswordUpdateInfo" placeholder="New Password (optional)">
+                <input class="centered-obj" type="text" id="newEmailUpdateInfo" placeholder="New Email (optional)">
+                <input class="centered-obj" type="text" id="preferencesUpdateInfo" placeholder="Preferences (optional)">
+                <button class="request-button" id="updateInfoRequest">Send request</button>
+            </div>
+            <div class="request-subdivision">
+                <label>Get user Information</label>
+                <button class="request-button">Send request</button>
+            </div>
+        </div>
+        <div class="request-division">
+            <div class="request-subdivision">
+                <label>Get the list of bookings</label>
+                <input class="centered-obj" type="text" id="hasCommentBookingRequest" placeholder="Has comment">
+                <button class="request-button" id="bookingListRequest">Send request</button>
+            </div>
+            <div class="request-subdivision">
+                <label>Label 8</label>
+                <button class="request-button">Send request</button>
+            </div>
+        </div>
+        <div class="">
+            <h2>Request Details</h2>
+            <textarea id="contentField" name="contentField" readonly></textarea>
+        </div>
+    </section>
+    <script type="module" src="mainpageScript.js"></script>
+    <script src="userMenu.js"></script>
+</body>
+</html>
