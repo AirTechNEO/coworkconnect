@@ -1,4 +1,7 @@
 .env
+*.pem
 .vscode
 node_modules/
-*.pem
+api/server.test.js
+api/jest.config.js
+X509-cert-219259406246793197.pem

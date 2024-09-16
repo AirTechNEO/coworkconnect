@@ -20,6 +20,7 @@ const publicKey = fs.readFileSync('C:/Apache24/htdocs/public.pem', 'utf8');
 const uri = process.env.MONGODB_URI;
 const port = process.env.PORT || 3000;// Default to port 3000 if not set
 const queryCache = new NodeCache({ stdTTL: 600 }); // Cache with 10 minutes TTL (time to live)
+const hostname = window.location.hostname;
 const nbHourSlots = 12;
 
 
@@ -27,7 +28,7 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/', (req, res) => {
-    res.redirect('http://192.168.0.57');  
+    res.redirect(hostname);  
   });
 
 //-------------------------------------------------------------------------
@@ -818,45 +819,9 @@ async function getUserFromEmail(email) {
         await client.connect();
         const database = client.db('coworkconnect');
         const users = database.collection('userInfo');
+        console.log("email",email);
+        console.log(users)
         return await users.findOne({email});
-    } finally {
-        await client.close();
-    }
-}
-
-// app.get('/getItem', async (req, res) => {
-//     console.log('req.query:', req.query);
-//     const { query, dbName, collectionName, queryType } = req.query;
-//     const result = await getInfo(query, dbName, collectionName, queryType);
-//     console.log('result:', result);
-//     res.send(JSON.stringify(result));
-// });
-
-async function getInfo(query, dbName, collectionName, queryType = 'first') {
-    if (typeof query === 'string'){
-        try {
-            query = JSON.parse(query);
-        } catch (e) {
-            console.log('query is not a valid JSON string, error: ', e);
-            return {infoField: 'query is not a valid JSON string'};
-        }
-    }
-    if (typeof query !== 'object'){
-        console.log('query is not an object, is: ',typeof query ,'instead.');
-        return {infoField: 'query is not an object'};
-    }
-    const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
-    try {
-        await client.connect();
-        const database = client.db(dbName);
-        const collection = database.collection(collectionName);
-        switch (queryType) {
-            case 'all':
-                return await collection.find(query).toArray();
-            case 'first':
-            default:
-                return await collection.findOne(query).toArray();
-        }
     } finally {
         await client.close();
     }
@@ -887,3 +852,20 @@ async function verifyTokenAndUser(token) {
 app.listen(port, () => {
     console.log(`Server is running at http://localhost:${port}`);
 });
+
+module.exports = {
+    getUserFromEmail,
+    getAvailableRooms,
+    makeReservation,
+    cancelReservation,
+    commentBooking,
+    getUserBookings,
+    updateUserInfo,
+    getUserInformation,
+    getRoomInformation,
+    verifyTokenAndUser,
+    validateDate,
+    validateStrList,
+    getRoomRequestParameters,
+    verifyTokenAndUser
+  };
