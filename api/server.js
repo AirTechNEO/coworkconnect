@@ -819,8 +819,6 @@ async function getUserFromEmail(email) {
         await client.connect();
         const database = client.db('coworkconnect');
         const users = database.collection('userInfo');
-        console.log("email",email);
-        console.log(users)
         return await users.findOne({email});
     } finally {
         await client.close();
