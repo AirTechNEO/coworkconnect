@@ -706,7 +706,7 @@ async function makeUserAdvising(userEmail, dateFrom, dateTo, roomSize, amenities
             result: await getAvailableRooms(0, dateFrom, dateTo, roomSize, amenitiesList, tagList)};
     }
     //Second, we make the request to get the available rooms
-    const rooms = fetchAvailableRooms(dateFrom, dateTo, roomSize, amenitiesList, tagList);
+    const rooms = fetchAvailableRooms(dateFrom, dateTo, null, null, null);
     //Then, we use a regression function to predict which room is the best for the user
     if (rooms.totalResults === 0) {
         return { error: 'No rooms available' };
@@ -722,13 +722,20 @@ function orderAdvising (userPreferences,rooms) {
     const allTags = amenitiesTagList.amenities.concat(amenitiesTagList.tags);
     rooms.forEach(room => {
         room.Score = 0; // Initialize score
-
         // Compare user's preferences with room's amenities
         userPreferences.forEach(preference => {
             if (allTags.includes(preference) && (room.amenities.includes(preference) || room.tags.includes(preference))) {
                 room.Score += 1; // Add a score for each matching preference
+                if ((preference === 'private' && room.tags.includes('private')) || (preference === 'public' && room.tags.includes('public'))) {
+                    room.Score += 1; // Add an additional score if the user prefers the room type
+                }
             }
         });
+         // Apply a linear malus if room size is less than a tenth of the requested size
+        min = room.size / 10;
+        max = room.size;
+        n = roomSize > room.size ? 0 : (roomSize < room.size / 10 ? 1 : (roomSize - min) / (max - min));
+        room.Score -= n*min + (1-n)*max; 
         // Additional scoring logic can be added here if needed
     });
 
