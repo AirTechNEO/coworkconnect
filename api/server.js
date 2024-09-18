@@ -3,7 +3,6 @@
 //-------------------------------------------------------------------------
 
 
-
 require('dotenv').config();
 const express = require('express');                         
 const { MongoClient, ObjectId } = require('mongodb');
@@ -14,13 +13,14 @@ const crypto = require('crypto');
 const cors = require('cors');
 const app = express();
 const NodeCache = require('node-cache');
+const amenitiesTagList = require('./amenitiesTagList.json');
 
 const secretKey = fs.readFileSync('C:/Apache24/htdocs/private.pem', 'utf8');
 const publicKey = fs.readFileSync('C:/Apache24/htdocs/public.pem', 'utf8');
 const uri = process.env.MONGODB_URI;
 const port = process.env.PORT || 3000;// Default to port 3000 if not set
 const queryCache = new NodeCache({ stdTTL: 600 }); // Cache with 10 minutes TTL (time to live)
-const hostname = window.location.hostname;
+const hostname = 'localhost';
 const nbHourSlots = 12;
 
 
@@ -101,7 +101,7 @@ app.post('/', async (req, res) => {
     const {valid,message,userEmail} = await verifyTokenAndUser(token);
     if (valid) {
         switch (requestType) {
-            case 'rocoms':
+            case 'rooms':
                 console.log('Rooms request received');
                 try{
                     const {pageNb, dateFrom, dateTo, roomSize, amenitiesTranformed, tagListTranformed} = getRoomRequestParameters(requestContent);
@@ -198,8 +198,17 @@ app.post('/', async (req, res) => {
 //-------------------------------------------------------------------------
 
 async function getAvailableRooms(pageNb, dateFrom, dateTo, roomSize, amenitiesList, tagList) {
-    const client = new MongoClient(uri);
-
+    let results;
+    // Validate the parameters
+    if (roomSize && isNaN(parseInt(roomSize, 10))) {
+        throw new Error('Bad request: Room size must be an integer');
+    }
+    if (amenitiesList && (!Array.isArray(amenitiesList) || !amenitiesList.every(item => /^[a-zA-Z0-9_]+$/.test(item)))) {
+        throw new Error('Bad request: List of amenities must be a list of strings separated by commas');
+    }
+    if (tagList && (!Array.isArray(tagList) || !tagList.every(item => /^[a-zA-Z0-9_]+$/.test(item)))) {
+        throw new Error('Bad request: List of tags must be a list of strings separated by commas');
+    }
     // Handle default pageNb value
     if (pageNb === undefined || pageNb === null || pageNb < 0) {
         pageNb = 0;
@@ -208,7 +217,7 @@ async function getAvailableRooms(pageNb, dateFrom, dateTo, roomSize, amenitiesLi
     // Handle default dateFrom value
     const today = new Date();
     const defaultDateFrom = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-    if (!dateFrom || new Date(dateFrom) < defaultDateFrom) {
+    if (!dateFrom || (new Date(dateFrom) < defaultDateFrom)) {
         dateFrom = defaultDateFrom.toISOString().split('T')[0];
     }
 
@@ -237,117 +246,32 @@ async function getAvailableRooms(pageNb, dateFrom, dateTo, roomSize, amenitiesLi
         };
     }
 
-    try {
-        await client.connect();
-        const database = client.db('coworkconnect');
-        const availabilities = database.collection('availabilities');
-
-        // Calculate the number of days between dateFrom and dateTo
-        const numberOfDays = Math.ceil((new Date(dateTo) - new Date(dateFrom)) / (1000 * 60 * 60 * 24)) + 1;
-
-        // Aggregation pipeline
-        const pipeline = [
-            {
-                $match: {
-                    date: {
-                        $gte: dateFrom,
-                        $lte: dateTo
-                    }
-                }
-            },
-            {
-                $group: {
-                    _id: "$roomId",
-                    allHours: {
-                        $push: "$hours"
-                    }
-                }
-            },
-            {
-                $addFields: {
-                    concatenatedHours: {
-                        $reduce: {
-                            input: "$allHours",
-                            initialValue: [],
-                            in: {
-                                $concatArrays: ["$$value", "$$this"]
-                            }
-                        }
-                    }
-                }
-            },
-            {
-                $match: {
-                    concatenatedHours: {
-                        $elemMatch: {
-                            $ne: 0
-                        }
-                    }
-                }
-            },
-            {
-                $project: {
-                    _id: 0,
-                    roomId: "$_id"
-                }
-            },
-            {
-                $lookup: {
-                    from: "roomInfo",
-                    localField: "roomId",
-                    foreignField: "_id",
-                    as: "roomDetails"
-                }
-            },
-            {
-                $project: {
-                    roomInfo: "$roomDetails"
-                }
-            },
-            {
-                $unwind: "$roomInfo"
-            },
-            {
-                $replaceRoot: {
-                    newRoot: "$roomInfo"
-                }
-            },
-            {
-                $match: {
-                    size: { $gte: roomSize ? parseInt(roomSize) : 0 },
-                    amenities: amenitiesList ? { $all: amenitiesList } : { $exists: true },
-                    tags: tagList ? { $all: tagList } : { $exists: true }
-                }
-            }
-        ];
-
-        // Execute the aggregation
-        const results = await availabilities.aggregate(pipeline).toArray();
-
-        // Cache the full result set
-        queryCache.set(cacheKey, results);
-        // Paginate the results
-        const startIndex = pageNb * 20;
-        if (results.length > 0 && startIndex >= results.length) {
-            throw new Error(`Requested page exceeds available entries: ${startIndex} >= ${results.length}`);
-        }
-        return {
-            page: pageNb,
-            totalPages: Math.ceil(results.length / 20),
-            totalResults: results.length,
-            results: results.slice(startIndex, startIndex + 20)
-        };
-    } finally {
-        await client.close();
+    // Fetch the results from the database
+    results = await fetchAvailableRooms(dateFrom, dateTo, roomSize, amenitiesList, tagList);
+    
+    // Cache the full result set
+    queryCache.set(cacheKey, results);
+    // Paginate the results
+    const startIndex = pageNb * 20;
+    if (results.length > 0 && startIndex >= results.length) {
+        throw new Error(`Requested page exceeds available entries: ${startIndex} >= ${results.length}`);
     }
+    return {
+        page: pageNb,
+        totalPages: Math.ceil(results.length / 20),
+        totalResults: results.length,
+        results: results.slice(startIndex, startIndex + 20)
+    };
 }
+
+
 
 //-------------------------------------------------------------------------
 // Query route 2: Book a room
 //------------------------------------------------------------------------- 
 
 async function makeReservation(userEmail, roomId, nbPeople, startingDate, startingHour, duration){
-    if (!userEmail || !roomId || !nbPeople || !startingDate || !startingHour || !duration || isNaN(nbPeople) || isNaN(startingHour) || isNaN(duration) || duration <= 0) {
+    if (!userEmail || !roomId || !startingDate || isNaN(nbPeople) || isNaN(startingHour) || isNaN(duration) || startingHour < 0 || nbPeople <= 0 || duration <= 0) {
         return { error: 'All fields are required' };
     }
     const client = new MongoClient(uri);
@@ -370,7 +294,6 @@ async function makeReservation(userEmail, roomId, nbPeople, startingDate, starti
         // Find all the availabilities for the given dayStart
         const endingHour = (startingHour + duration - 1) % 12;//-1 to account for the starting hour
         const nbDays = Math.ceil((parseInt(startingHour) + parseInt(duration)) / 12);
-        console.log("nbDays",nbDays);
         var endingDate = new Date(startingDate);
         endingDate.setUTCDate(endingDate.getUTCDate() + nbDays);
         endingDate = endingDate.toISOString().split('T')[0];
@@ -433,8 +356,8 @@ async function makeReservation(userEmail, roomId, nbPeople, startingDate, starti
         };
         // Add the booking to the user's bookings
         await users.updateOne({ email: userEmail }, { $push:{"Bookings": reservation }});
-        // Update the availabilities collection to reflect the new booking
         
+        // Update the availabilities collection to reflect the new booking
         // Update the first day
         for (let i = startingHour; i < 12; i++) {
             if (allDays[0].hours[i] !== -1) {
@@ -474,8 +397,8 @@ async function makeReservation(userEmail, roomId, nbPeople, startingDate, starti
             { _id: allDays[nbDays - 1]._id },
             { $set: { hours: allDays[nbDays - 1].hours } }
         );
+
         queryCache.flushAll(); // Clear the cache to force a refresh of the room availability
-        console.log("allDays",allDays);
         return { message: 'Reservation successful', reservation };
     } 
     catch (error) {
@@ -772,11 +695,147 @@ async function getRoomInformation(roomId) {
 //-------------------------------------------------------------------------
 // Function definitions
 //-------------------------------------------------------------------------
+
+
+async function makeUserAdvising(userEmail, dateFrom, dateTo, roomSize, amenitiesList, tagList) {
+    //First, we get the user preferences
+    const user = getUserFromEmail(userEmail);
+    const preferences = user.preferences;
+    if (!preferences) {
+        return { message: 'Preferences not set, defaulting to get the available rooms.' , 
+            result: await getAvailableRooms(0, dateFrom, dateTo, roomSize, amenitiesList, tagList)};
+    }
+    //Second, we make the request to get the available rooms
+    const rooms = fetchAvailableRooms(dateFrom, dateTo, roomSize, amenitiesList, tagList);
+    //Then, we use a regression function to predict which room is the best for the user
+    if (rooms.totalResults === 0) {
+        return { error: 'No rooms available' };
+    }
+    const bestRooms = orderAdvising(preferences,rooms.results);
+    return bestRooms;
+}
+
+function orderAdvising (userPreferences,rooms) {
+    // This function will take the json object with the rooms and order them by the best for the user
+
+    // Room scoring function
+    const allTags = amenitiesTagList.amenities.concat(amenitiesTagList.tags);
+    rooms.forEach(room => {
+        room.Score = 0; // Initialize score
+
+        // Compare user's preferences with room's amenities
+        userPreferences.forEach(preference => {
+            if (allTags.includes(preference) && (room.amenities.includes(preference) || room.tags.includes(preference))) {
+                room.Score += 1; // Add a score for each matching preference
+            }
+        });
+        // Additional scoring logic can be added here if needed
+    });
+
+    // Sort rooms by score (highest to lowest)
+    const sortedRooms = rooms.sort((a, b) => b.Score - a.Score);
+
+    // Return a list with the rooms ordered by their score
+    return sortedRooms.map(room => ({ score: room.Score, room }));
+}
+
+async function fetchAvailableRooms(dateFrom, dateTo, roomSize, amenitiesList, tagList) {
+    const client = new MongoClient(uri);
+    try {
+        await client.connect();
+        const database = client.db('coworkconnect');
+        const availabilities = database.collection('availabilities');
+
+        // Aggregation pipeline 
+        const pipeline = [
+            {
+                $match: {
+                    date: {
+                        $gte: dateFrom,
+                        $lte: dateTo
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: "$roomId",
+                    allHours: {
+                        $push: "$hours"
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    concatenatedHours: {
+                        $reduce: {
+                            input: "$allHours",
+                            initialValue: [],
+                            in: {
+                                $concatArrays: ["$$value", "$$this"]
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                $match: {
+                    concatenatedHours: {
+                        $elemMatch: {
+                            $ne: 0
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    roomId: "$_id"
+                }
+            },
+            {
+                $lookup: {
+                    from: "roomInfo",
+                    localField: "roomId",
+                    foreignField: "_id",
+                    as: "roomDetails"
+                }
+            },
+            {
+                $project: {
+                    roomInfo: "$roomDetails"
+                }
+            },
+            {
+                $unwind: "$roomInfo"
+            },
+            {
+                $replaceRoot: {
+                    newRoot: "$roomInfo"
+                }
+            },
+            {
+                $match: {
+                    size: { $gte: roomSize ? parseInt(roomSize) : 0 },
+                    amenities: amenitiesList ? { $all: amenitiesList } : { $exists: true },
+                    tags: tagList ? { $all: tagList } : { $exists: true }
+                }
+            }
+        ];
+        // Execute the aggregation
+        return await availabilities.aggregate(pipeline).toArray();
+    } finally {
+        await client.close();
+    }
+}
+
 function validateDate(date) {
     return /^\d{4}-\d{2}-\d{2}$/.test(date);
 }
 
 function validateStrList(list) {
+    if (!list) {
+        return false;
+    }
     return /^[a-zA-Z0-9_,]+$/.test(list);
 }
 
@@ -811,7 +870,7 @@ function getRoomRequestParameters(requestContent) {
     }
     const tagListTranformed = tagList ? tagList.split(',').map(str => str.toLowerCase().trim().replace(/\s/g, '')).filter(str => str !== '') : null;
     return { pageNb, dateFrom, dateTo, roomSize, amenitiesTranformed, tagListTranformed };
-}
+} //
 
 async function getUserFromEmail(email) {
     const client = new MongoClient(uri);
@@ -819,13 +878,11 @@ async function getUserFromEmail(email) {
         await client.connect();
         const database = client.db('coworkconnect');
         const users = database.collection('userInfo');
-        console.log("email",email);
-        console.log(users)
         return await users.findOne({email});
     } finally {
         await client.close();
     }
-}
+} //
 
 async function verifyTokenAndUser(token) {
     try {
@@ -847,11 +904,11 @@ async function verifyTokenAndUser(token) {
     } catch (err) {
         return { valid: false, message: 'Invalid token' };
     }
-}
+} //
 
-app.listen(port, () => {
-    console.log(`Server is running at http://localhost:${port}`);
-});
+// app.listen(port, () => {
+//     console.log(`Server is running at http://localhost:${port}`);
+// });
 
 module.exports = {
     getUserFromEmail,
@@ -863,7 +920,6 @@ module.exports = {
     updateUserInfo,
     getUserInformation,
     getRoomInformation,
-    verifyTokenAndUser,
     validateDate,
     validateStrList,
     getRoomRequestParameters,
