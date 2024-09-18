@@ -697,13 +697,13 @@ async function getRoomInformation(roomId) {
 //-------------------------------------------------------------------------
 
 
-async function makeUserAdvising(userEmail, dateFrom, dateTo, roomSize, amenitiesList, tagList) {
+async function makeUserAdvising(userEmail, dateFrom, dateTo, roomSize) {
     //First, we get the user preferences
     const user = getUserFromEmail(userEmail);
     const preferences = user.preferences;
     if (!preferences) {
         return { message: 'Preferences not set, defaulting to get the available rooms.' , 
-            result: await getAvailableRooms(0, dateFrom, dateTo, roomSize, amenitiesList, tagList)};
+            result: await getAvailableRooms(0, dateFrom, dateTo, roomSize, null, null)};
     }
     //Second, we make the request to get the available rooms
     const rooms = fetchAvailableRooms(dateFrom, dateTo, null, null, null);
@@ -711,11 +711,11 @@ async function makeUserAdvising(userEmail, dateFrom, dateTo, roomSize, amenities
     if (rooms.totalResults === 0) {
         return { error: 'No rooms available' };
     }
-    const bestRooms = orderAdvising(preferences,rooms.results);
+    const bestRooms = orderAdvising(preferences, roomSize, rooms.results);
     return bestRooms;
 }
 
-function orderAdvising (userPreferences,rooms) {
+function orderAdvising (userPreferences, roomSize, rooms) {
     // This function will take the json object with the rooms and order them by the best for the user
 
     // Room scoring function
