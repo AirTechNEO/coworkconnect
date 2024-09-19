@@ -84,8 +84,8 @@ async function run(){
         }   
         rooms.deleteMany({}); // Clear the collection
         availabilitiesCollection.deleteMany({}); // Clear the collection
-        for (let i = 0; i < 9; i++){
-            const {roomEntry,availabilities}= generateRandomRoomEntry();
+        for (let i = 0; i < 25; i++){
+            const {roomEntry,availabilities} = generateRandomRoomEntry();
             rooms.insertOne(roomEntry);
             availabilitiesCollection.insertMany(availabilities);
         }

@@ -1,7 +1,10 @@
-.env
 *.pem
+.env
+.env1
 .vscode
+test.js
+test2.js
+test3.js
+testImg.jpg
 node_modules/
-api/server.test.js
-api/jest.config.js
 X509-cert-219259406246793197.pem
