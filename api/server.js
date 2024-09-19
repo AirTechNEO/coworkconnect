@@ -2,8 +2,7 @@
 // Load the required packages
 //-------------------------------------------------------------------------
 
-
-require('dotenv').config();
+require('dotenv').config({ path: './.env' });
 const express = require('express');                         
 const { MongoClient, ObjectId } = require('mongodb');
 const bcrypt = require('bcrypt');
@@ -17,7 +16,7 @@ const amenitiesTagList = require('./amenitiesTagList.json');
 
 const secretKey = fs.readFileSync('C:/Apache24/htdocs/private.pem', 'utf8');
 const publicKey = fs.readFileSync('C:/Apache24/htdocs/public.pem', 'utf8');
-const uri = process.env.MONGODB_URI;
+const uri = "mongodb+srv://joeymartinez:ThunderousShelter1@coworkconnectcluster.rpz8r.mongodb.net/?retryWrites=true&w=majority&appName=CoworkConnectCluster"
 const port = process.env.PORT || 3000;// Default to port 3000 if not set
 const queryCache = new NodeCache({ stdTTL: 600 }); // Cache with 10 minutes TTL (time to live)
 const hostname = 'localhost';
@@ -263,8 +262,6 @@ async function getAvailableRooms(pageNb, dateFrom, dateTo, roomSize, amenitiesLi
         results: results.slice(startIndex, startIndex + 20)
     };
 }
-
-
 
 //-------------------------------------------------------------------------
 // Query route 2: Book a room
@@ -587,8 +584,8 @@ async function updateUserInfo(userEmail, currPassword, newPassword, newEmail, pr
         if (newPassword && newPassword === currPassword) {
             return { error: 'New password must be different from the current password' };
         }
-        if (preferences && !Array.isArray(preferences) && preferences.some(preference => typeof preference !== 'string')) {
-            return { error: 'Preferences must be an array of strings' };
+        if (preferences && !validateStrList(preferences)) {
+            return { error: 'Preferences must be a string with separated elements' };
         }
 
 
@@ -600,7 +597,8 @@ async function updateUserInfo(userEmail, currPassword, newPassword, newEmail, pr
             await users.updateOne({ email: userEmail }, { $set: { password: await bcrypt.hash(newPassword, 10) } });
         }
         if (preferences) {
-            await users.updateOne({ email: userEmail }, { $set: { preferences } });
+            prefs = preferences.split(',').map(str => str.toLowerCase().trim().replace(/\s/g, '')).filter(str => str !== '');
+            await users.updateOne({ email: userEmail }, { $set: { prefs} });
         }
         return { message: 'User information updated successfully' };
     } catch (error) {
@@ -695,6 +693,18 @@ async function getRoomInformation(roomId) {
 //-------------------------------------------------------------------------
 // Function definitions
 //-------------------------------------------------------------------------
+
+
+// Expliquer le système de page pour la scalabilité
+
+// Présentation des types de tests et pk
+// Explication du choix de méthodo
+// Présentation des tests unitaires = screenshot test
+// Explication pour au moins un test de ce qu'il fait
+// Présentation des résultats de la série de tests unitairs = tests fonctionnels
+// Introduire la page html pour permettre les tests par parties
+// Présentation de la page html pour tests d'intégration
+
 
 
 async function makeUserAdvising(userEmail, dateFrom, dateTo, roomSize) {
@@ -843,7 +853,7 @@ function validateStrList(list) {
     if (!list) {
         return false;
     }
-    return /^[a-zA-Z0-9_,]+$/.test(list);
+    return /^[a-zA-Z0-9_]+(,[a-zA-Z0-9_]+)*$/.test(list);
 }
 
 function getRoomRequestParameters(requestContent) {
@@ -913,9 +923,9 @@ async function verifyTokenAndUser(token) {
     }
 } //
 
-// app.listen(port, () => {
-//     console.log(`Server is running at http://localhost:${port}`);
-// });
+app.listen(port, () => {
+    console.log(`Server is running at http://localhost:${port}`);
+});
 
 module.exports = {
     getUserFromEmail,
