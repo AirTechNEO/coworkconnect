@@ -16,7 +16,7 @@ const amenitiesTagList = require('./amenitiesTagList.json');
 
 const secretKey = fs.readFileSync('C:/Apache24/htdocs/private.pem', 'utf8');
 const publicKey = fs.readFileSync('C:/Apache24/htdocs/public.pem', 'utf8');
-const uri = "mongodb+srv://joeymartinez:ThunderousShelter1@coworkconnectcluster.rpz8r.mongodb.net/?retryWrites=true&w=majority&appName=CoworkConnectCluster"
+const uri = process.env.MONGODB_URI
 const port = process.env.PORT || 3000;// Default to port 3000 if not set
 const queryCache = new NodeCache({ stdTTL: 600 }); // Cache with 10 minutes TTL (time to live)
 const hostname = 'localhost';
