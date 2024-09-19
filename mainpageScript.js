@@ -61,8 +61,16 @@ document.addEventListener("DOMContentLoaded", function() {
         contentField.innerHTML = "Loading...";
         getUserBookings(hasCommentBookingRequest.value);
     });
+    //Eighth section: Make advising
+    const dateFromAdvising = document.getElementById("dateFromAdvising");
+    const dateToAdvising = document.getElementById("dateToAdvising");
+    const roomSizeAdvising = document.getElementById("roomSizeAdvising");
+    const makeAdvisingRequest = document.getElementById("makeAdvisingRequest");
 
-
+    makeAdvisingRequest.addEventListener("click", () => {
+        contentField.innerHTML = "Loading...";
+        makeAdvising(dateFromAdvising.value, dateToAdvising.value, roomSizeAdvising.value);
+    });
 });
 
 async function availableRooms(pageNb, dateFrom, dateTo, roomSize, amenitiesList, tagList) {   
@@ -201,7 +209,25 @@ async function sendInfo(reqBody) {
     }
 }
 
-
+async function makeAdvising(dateFromAdvising, dateToAdvising, roomSizeAdvising){
+    const reqBody = {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            token,
+            requestType: 'advising',
+            requestContent: {
+                dateFrom: dateFromAdvising,
+                dateTo: dateToAdvising,
+                roomSize: roomSizeAdvising
+            }
+        })
+    };
+    console.log('reqBody:', reqBody);
+    sendInfo(reqBody);
+}
 
 
 function clickButton() {

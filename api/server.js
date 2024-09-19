@@ -13,10 +13,12 @@ const cors = require('cors');
 const app = express();
 const NodeCache = require('node-cache');
 const amenitiesTagList = require('./amenitiesTagList.json');
+const allAmenities = amenitiesTagList.amenitiesList;
+const allTags = amenitiesTagList.tagsList;
 
 const secretKey = fs.readFileSync('C:/Apache24/htdocs/private.pem', 'utf8');
 const publicKey = fs.readFileSync('C:/Apache24/htdocs/public.pem', 'utf8');
-const uri = process.env.MONGODB_URI
+const uri = "mongodb+srv://joeymartinez:ThunderousShelter1@coworkconnectcluster.rpz8r.mongodb.net/?retryWrites=true&w=majority&appName=CoworkConnectCluster"
 const port = process.env.PORT || 3000;// Default to port 3000 if not set
 const queryCache = new NodeCache({ stdTTL: 600 }); // Cache with 10 minutes TTL (time to live)
 const hostname = 'localhost';
@@ -184,6 +186,16 @@ app.post('/', async (req, res) => {
                     console.error(error);
                     return res.status(400).json({ error: error.message });
                 }
+            case 'advising':
+                console.log('User advising request received');
+                try {
+                    const {dateFrom, dateTo, roomSize} = requestContent;
+                    const result = await makeUserAdvising(userEmail, dateFrom, dateTo, roomSize);
+                    return res.send(JSON.stringify(result));
+                } catch (error) {
+                    console.error(error);
+                    return res.status(400).json({ error: error.message });
+                }
             default:
                 return res.status(400).json({error: 'Invalid request type'});
         }
@@ -211,19 +223,6 @@ async function getAvailableRooms(pageNb, dateFrom, dateTo, roomSize, amenitiesLi
     // Handle default pageNb value
     if (pageNb === undefined || pageNb === null || pageNb < 0) {
         pageNb = 0;
-    }
-
-    // Handle default dateFrom value
-    const today = new Date();
-    const defaultDateFrom = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
-    if (!dateFrom || (new Date(dateFrom) < defaultDateFrom)) {
-        dateFrom = defaultDateFrom.toISOString().split('T')[0];
-    }
-
-    // Handle default dateTo value
-    const defaultDateTo = new Date(defaultDateFrom.getTime() + (13 * 7 * 24 * 60 * 60 * 1000)); // 13 weeks from defaultDateFrom
-    if (!dateTo || new Date(dateTo) > defaultDateTo) {
-        dateTo = defaultDateTo.toISOString().split('T')[0];
     }
 
     // Generate a cache key based on the query parameters
@@ -555,11 +554,11 @@ async function commentBooking(userEmail, reservationId, rating, comment) {
 // Query route 5: Update user information
 //-------------------------------------------------------------------------
 
-async function updateUserInfo(userEmail, currPassword, newPassword, newEmail, preferences) {
+async function updateUserInfo(userEmail, currPassword, newPassword, newEmail, userPreferences) {
     if (!currPassword) {
         return { error: 'User password not provided' };
     }
-    if (!newEmail && !preferences && !newPassword) {
+    if (!newEmail && !userPreferences && !newPassword) {
         return { error: 'No new information provided' };
     }
     const client = new MongoClient(uri);
@@ -584,7 +583,7 @@ async function updateUserInfo(userEmail, currPassword, newPassword, newEmail, pr
         if (newPassword && newPassword === currPassword) {
             return { error: 'New password must be different from the current password' };
         }
-        if (preferences && !validateStrList(preferences)) {
+        if (userPreferences && !validateStrList(userPreferences)) {
             return { error: 'Preferences must be a string with separated elements' };
         }
 
@@ -596,9 +595,9 @@ async function updateUserInfo(userEmail, currPassword, newPassword, newEmail, pr
         if (newPassword) {
             await users.updateOne({ email: userEmail }, { $set: { password: await bcrypt.hash(newPassword, 10) } });
         }
-        if (preferences) {
-            prefs = preferences.split(',').map(str => str.toLowerCase().trim().replace(/\s/g, '')).filter(str => str !== '');
-            await users.updateOne({ email: userEmail }, { $set: { prefs} });
+        if (userPreferences) {
+            preferences = userPreferences.split(',').map(str => str.toLowerCase().trim().replace(/\s/g, '')).filter(str => str !== '');
+            await users.updateOne({ email: userEmail }, { $set: { preferences} });
         }
         return { message: 'User information updated successfully' };
     } catch (error) {
@@ -694,7 +693,6 @@ async function getRoomInformation(roomId) {
 // Function definitions
 //-------------------------------------------------------------------------
 
-
 // Expliquer le système de page pour la scalabilité
 
 // Présentation des types de tests et pk
@@ -705,59 +703,37 @@ async function getRoomInformation(roomId) {
 // Introduire la page html pour permettre les tests par parties
 // Présentation de la page html pour tests d'intégration
 
-
-
 async function makeUserAdvising(userEmail, dateFrom, dateTo, roomSize) {
     //First, we get the user preferences
-    const user = getUserFromEmail(userEmail);
+    const user = await getUserFromEmail(userEmail);
     const preferences = user.preferences;
     if (!preferences) {
         return { message: 'Preferences not set, defaulting to get the available rooms.' , 
             result: await getAvailableRooms(0, dateFrom, dateTo, roomSize, null, null)};
     }
     //Second, we make the request to get the available rooms
-    const rooms = fetchAvailableRooms(dateFrom, dateTo, null, null, null);
-    //Then, we use a regression function to predict which room is the best for the user
+    const rooms = await fetchAvailableRooms(dateFrom, dateTo, null, null, null);
     if (rooms.totalResults === 0) {
         return { error: 'No rooms available' };
     }
-    const bestRooms = orderAdvising(preferences, roomSize, rooms.results);
-    return bestRooms;
-}
-
-function orderAdvising (userPreferences, roomSize, rooms) {
-    // This function will take the json object with the rooms and order them by the best for the user
-
-    // Room scoring function
-    const allTags = amenitiesTagList.amenities.concat(amenitiesTagList.tags);
-    rooms.forEach(room => {
-        room.Score = 0; // Initialize score
-        // Compare user's preferences with room's amenities
-        userPreferences.forEach(preference => {
-            if (allTags.includes(preference) && (room.amenities.includes(preference) || room.tags.includes(preference))) {
-                room.Score += 1; // Add a score for each matching preference
-                if ((preference === 'private' && room.tags.includes('private')) || (preference === 'public' && room.tags.includes('public'))) {
-                    room.Score += 1; // Add an additional score if the user prefers the room type
-                }
-            }
-        });
-         // Apply a linear malus if room size is less than a tenth of the requested size
-        min = room.size / 10;
-        max = room.size;
-        n = roomSize > room.size ? 0 : (roomSize < room.size / 10 ? 1 : (roomSize - min) / (max - min));
-        room.Score -= n*min + (1-n)*max; 
-        // Additional scoring logic can be added here if needed
-    });
-
-    // Sort rooms by score (highest to lowest)
-    const sortedRooms = rooms.sort((a, b) => b.Score - a.Score);
-
-    // Return a list with the rooms ordered by their score
-    return sortedRooms.map(room => ({ score: room.Score, room }));
+    const bestRooms = knnModel(rooms, roomSize, preferences);
+    return {message:"Made suggestion.", result:bestRooms} ;
 }
 
 async function fetchAvailableRooms(dateFrom, dateTo, roomSize, amenitiesList, tagList) {
     const client = new MongoClient(uri);
+    // Handle default dateFrom value
+    const today = new Date();
+    const defaultDateFrom = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    if (!dateFrom || (new Date(dateFrom) < defaultDateFrom)) {
+        dateFrom = defaultDateFrom.toISOString().split('T')[0];
+    }
+
+    // Handle default dateTo value
+    const defaultDateTo = new Date(defaultDateFrom.getTime() + (13 * 7 * 24 * 60 * 60 * 1000)); // 13 weeks from defaultDateFrom
+    if (!dateTo || new Date(dateTo) > defaultDateTo) {
+        dateTo = defaultDateTo.toISOString().split('T')[0];
+    }
     try {
         await client.connect();
         const database = client.db('coworkconnect');
@@ -838,11 +814,44 @@ async function fetchAvailableRooms(dateFrom, dateTo, roomSize, amenitiesList, ta
                 }
             }
         ];
+
         // Execute the aggregation
         return await availabilities.aggregate(pipeline).toArray();
     } finally {
         await client.close();
     }
+}
+
+function euclideanDistance(room, desiredSize, userPreferences) {
+    let distance = 0;
+
+    distance += Math.pow((room.size - desiredSize), 2)/2;
+
+    const commonAmenities = room.amenities.filter(item => userPreferences.includes(item)).length;
+    const amenitiesDistance = 1 - (commonAmenities / allAmenities.length);
+    distance += amenitiesDistance * amenitiesDistance;
+
+    const commonTags = room.tags.filter(tag => userPreferences.includes(tag)).length;
+    const tagsDistance = 1 - (commonTags / allTags.length);
+    distance += tagsDistance * tagsDistance;
+
+    return Math.sqrt(distance);
+}
+
+function knnModel(rooms, roomSize, userPreferences, k = 3) {
+    rooms.forEach(room => {
+        room.distance = euclideanDistance(room, roomSize, userPreferences);
+    });
+
+    const sortedRooms = rooms.sort((a, b) => a.distance - b.distance);
+
+    const kNearestRooms = sortedRooms.slice(0, k);
+
+    kNearestRooms.forEach(room => {
+        room.score = 1 / (1 + room.distance);  // Score is the inverse of the distance
+    });
+
+    return kNearestRooms;
 }
 
 function validateDate(date) {
